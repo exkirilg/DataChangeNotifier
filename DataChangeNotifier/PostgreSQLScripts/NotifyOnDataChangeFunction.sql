@@ -20,6 +20,12 @@ BEGIN
             'data', data);
 
     PERFORM pg_notify('datachange', notification::TEXT);
-  RETURN NEW;
+  
+  IF (TG_OP = 'DELETE') THEN
+    data = RETURN OLD;
+  ELSE
+    data = RETURN NEW;
+  END IF;
+
 END
 $BODY$
