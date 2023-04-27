@@ -1,4 +1,6 @@
-﻿using Npgsql;
+﻿using DataChangeNotifier.Hubs;
+using Microsoft.AspNetCore.SignalR;
+using Npgsql;
 
 namespace DataChangeNotifier;
 
@@ -6,11 +8,15 @@ public class DatabaseListener : BackgroundService
 {
     private readonly string _connectionString;
     private readonly ILogger<DatabaseListener> _logger;
-    
-    public DatabaseListener(IConfiguration config, ILogger<DatabaseListener> logger)
+    private readonly IHubContext<DataChangeNotifierHub, INotifyOnDataChanged> _hub;
+
+    public DatabaseListener(
+        IConfiguration config, ILogger<DatabaseListener> logger,
+        IHubContext<DataChangeNotifierHub, INotifyOnDataChanged> hub)
     {
         _logger = logger;
         _connectionString = config.GetSection("ConnectionStrings:Database").Value!;
+        _hub = hub;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -20,7 +26,7 @@ public class DatabaseListener : BackgroundService
         using var connection = new NpgsqlConnection(_connectionString);
 
         await connection.OpenAsync(stoppingToken);
-        connection.Notification += (o, e) => _logger.LogInformation("Received notification: " + e.Payload);
+        connection.Notification += async (o, e) => await OnDataChanged(e.Payload);
 
         var listenCommand = new NpgsqlCommand("listen datachange;", connection);
         await listenCommand.ExecuteNonQueryAsync(stoppingToken);
@@ -29,5 +35,11 @@ public class DatabaseListener : BackgroundService
         {
             await connection.WaitAsync(stoppingToken);
         }
+    }
+
+    private async Task OnDataChanged(string payload)
+    {
+        _logger.LogInformation("Received notification: " + payload);
+        await _hub.Clients.All.NotifyOnDataChanged(payload);
     }
 }
