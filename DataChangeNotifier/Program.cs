@@ -4,8 +4,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHostedService<DatabaseListener>();
 
+builder.Services.AddRazorPages();
+builder.Services.AddServerSideBlazor();
+
 var app = builder.Build();
 
-app.MapGet("hello", () => "Hello world!");
+app.UseHttpsRedirection();
+
+app.UseStaticFiles();
+
+app.MapBlazorHub();
+app.MapFallbackToPage("/_Host");
 
 app.Run();
